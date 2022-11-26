@@ -114,15 +114,4 @@ public class Task1 {
         return result;
     }
 
-    public static void main(String[] args) {
-        Task1 task1 = new Task1();
-        try {
-            long startTime = System.currentTimeMillis();
-            task1.mergeName("task1.xml");
-            long endTime = System.currentTimeMillis();
-            System.out.println("That took " + (endTime - startTime) + " milliseconds");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 }
