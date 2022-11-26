@@ -1,70 +1,72 @@
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingJsonFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.ser.ToXmlGenerator;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FilterReader;
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.Month;
-import java.time.Year;
-import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Random;
+import java.util.Map;
+
 
 public class Task2 {
+
+    /**
+     * Calculates statistics of violations from .json files with data of violations during different years.
+     * Creates file 'statistics.xml' with total amount of fines for every violation type sorted in descending order.
+     *
+     * @param path - path to a directory with .json files
+     * @throws IOException
+     */
     public void getStatistics(String path) throws IOException {
+        Map<String, Double> statisticsMap = new HashMap<>();
         JsonFactory jasonFactory = new MappingJsonFactory();
         File dir = new File(path);
         File[] files = dir.listFiles(file -> !file.isDirectory() && file.getName().endsWith(".json"));
+        if (files == null) {
+            throw new IllegalStateException("Given directory doesn't contain .json files");
+        }
         for (File file : files) {
-            JsonParser jsonParser = jasonFactory.createParser(file);
-            while (jsonParser.nextToken() != JsonToken.END_OBJECT) {
-                if (jsonParser.nextToken() == JsonToken.START_ARRAY) {
-                    while (jsonParser.nextToken() != JsonToken.END_ARRAY) {
-                        JsonNode node = jsonParser.readValueAsTree();
-                        System.out.println("Type: " + node.get("type").asText());
-                        System.out.println("Amount: " + node.get("fine_amount").asText());
-                    }
+            try (JsonParser jsonParser = jasonFactory.createParser(file)) {
+                if (jsonParser.nextToken() != JsonToken.START_ARRAY) {
+                    throw new IllegalStateException("An array is expected");
+                }
+                while (jsonParser.nextToken() != JsonToken.END_ARRAY) {
+                    Violation violation = readViolation(jsonParser);
+                    Double sum = statisticsMap.getOrDefault(violation.getType(), 0.0);
+                    statisticsMap.put(violation.getType(), sum + violation.getAmount());
                 }
             }
-            jsonParser.close();
         }
+
+        List<Violation> violationList = statisticsMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+                .map(e -> new Violation(e.getKey(), e.getValue())).toList();
+
+        XmlMapper xmlMapper = new XmlMapper();
+        xmlMapper.configure(ToXmlGenerator.Feature.WRITE_XML_DECLARATION, true);
+        xmlMapper.writeValue(new File(path + "/statistics.xml"), new Statistics(violationList));
     }
 
-    public static void main(String[] args) {
-        Task2 task2 = new Task2();
-        try {
-            task2.getStatistics("files");
-        } catch (IOException e) {
-            e.printStackTrace();
+    private Violation readViolation(JsonParser jsonParser) throws IOException {
+        if (jsonParser.currentToken() != JsonToken.START_OBJECT) {
+            throw new IllegalStateException("An object is expected");
         }
-        /*Year year = Year.of(2001);
-        Random r = new Random();
-        double rangeMin = 1.0;
-        double rangeMax = 100.0;
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.findAndRegisterModules();
-        while (year.isBefore(Year.now())) {
-            String filePath = "fine" + year.toString() + ".json";
-            List<Fine> list = new ArrayList<>();
-            LocalDateTime date = LocalDateTime.of(year.getValue(), Month.JANUARY, 1, 0,0);
-            while (date.isBefore(LocalDateTime.of(year.plusYears(1L).getValue(), Month.JANUARY, 1, 0,0))) {
-                Fine fine = new Fine(date, "John", "Doe", ViolationType.randomViolation(), rangeMin + (rangeMax - rangeMin) * r.nextDouble());
-                list.add(fine);
-                date = date.plusDays(1);
+
+        Violation violation = new Violation();
+        while (jsonParser.nextToken() != JsonToken.END_OBJECT) {
+            String property = jsonParser.getCurrentName();
+            jsonParser.nextToken();
+            switch (property) {
+                case "type" -> violation.setType(jsonParser.getText());
+                case "fine_amount" -> violation.setAmount(jsonParser.getDoubleValue());
             }
-            try {
-                mapper.writeValue(new File(filePath), list);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            year = year.plusYears(1);
-        }*/
+        }
+        return violation;
     }
+
 }
