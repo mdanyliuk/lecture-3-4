@@ -114,4 +114,20 @@ public class Task1 {
         return result;
     }
 
+    public static void main(String[] args) {
+        Task1 task1 = new Task1();
+        try {
+            task1.mergeName("./target/classes/task1/task1.xml");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        Task2 task2 = new Task2();
+        try {
+            task2.getStatistics("./target/classes/task2/");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }
